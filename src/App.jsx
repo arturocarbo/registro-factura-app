@@ -4,7 +4,6 @@ import {
   Trash2, Download, Filter, DollarSign, Calendar, Building2, 
   RefreshCw, Eye, Mail, Tag, Sparkles, Layers, PieChart, ArrowUpRight, Clock, Plus, Edit2, Key
 } from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
 
 const SAMPLE_RECEIPTS = [
   {
@@ -110,46 +109,46 @@ export default function App() {
     setScanProgress('Analizando documento con Inteligencia Artificial...');
 
     try {
-      // Inicialización compatible con el nuevo formato de llaves de Google (AQ...)
-      const ai = new GoogleGenAI({ 
-        apiKey: activeKey,
-        httpOptions: {
-          headers: {
-            'Authorization': `Bearer ${activeKey}`
-          }
-        }
-      });
-      
       const base64Data = imageFile ? await fileToBase64(imageFile) : imagePreview.split(',')[1];
       const mimeType = imageFile ? imageFile.type : 'image/jpeg';
 
-      const prompt = "Analiza esta factura o comprobante de gasto. Extrae con precisión: el nombre del lugar/establecimiento (lugar), la fecha en formato YYYY-MM-DD (fecha), el monto total pagado (montoTotal: busca el Total final), el IVA o impuesto pagado (iva), el número de factura/Check/ticket (numeroFactura) y asigna una categoría (categoria: Comida, Hospedaje, Transporte, Combustible, Otros).";
+      const promptText = "Analiza esta factura o comprobante de gasto. Extrae con precisión rigurosa en formato JSON puro (sin bloques de código markdown extra): {\"lugar\": \"nombre del establecimiento\", \"fecha\": \"YYYY-MM-DD\", \"montoTotal\": 0.00, \"iva\": 0.00, \"numeroFactura\": \"número\", \"categoria\": \"Comida o Hospedaje o Transporte o Combustible u Otros\", \"comentarios\": \"breve descripción\"}";
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
-          prompt,
-          { inlineData: { mimeType: mimeType, data: base64Data } }
-        ],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              lugar: { type: Type.STRING },
-              fecha: { type: Type.STRING },
-              montoTotal: { type: Type.NUMBER },
-              iva: { type: Type.NUMBER },
-              numeroFactura: { type: Type.STRING },
-              categoria: { type: Type.STRING },
-              comentarios: { type: Type.STRING }
-            },
-            required: ['lugar', 'fecha', 'montoTotal']
+      // Llamada directa por API REST universal (compatible con llaves AQ... y AIzaSy...)
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: promptText },
+              {
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Data
+                }
+              }
+            ]
+          }],
+          generationConfig: {
+            responseMimeType: "application/json"
           }
-        }
+        })
       });
 
-      const parsed = JSON.parse(response.text);
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const rawText = data.candidates[0].content.parts[0].text;
+      
+      // Limpieza por si la respuesta trae marcadores de código
+      const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+
       setFormData({
         fecha: parsed.fecha || new Date().toISOString().split('T')[0],
         lugar: parsed.lugar || 'Establecimiento No Identificado',
@@ -306,7 +305,7 @@ Estructura JSON para Carga Automática SAP:
               <button onClick={() => setShowApiKeyModal(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
             <p className="text-xs text-slate-300">
-              Ingresa tu clave de Gemini (la que empieza por <code className="text-blue-400 font-mono">AQ...</code>) para habilitar el escaneo inteligente de facturas:
+              Ingresa tu clave de Gemini (por ejemplo, la que empieza por <code className="text-blue-400 font-mono">AQ...</code>) para habilitar el escaneo inteligente de facturas:
             </p>
             <input 
               type="password" 

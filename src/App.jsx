@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Camera, Upload, CheckCircle2, AlertCircle, FileText, Send, 
   Trash2, Download, Filter, DollarSign, Calendar, Building2, 
-  RefreshCw, Eye, Mail, Tag, Sparkles, Layers, PieChart, ArrowUpRight, Clock, Plus, Edit2, Key, X
+  RefreshCw, Eye, Mail, Tag, Sparkles, Layers, PieChart, ArrowUpRight, Clock, Plus, Edit2, X
 } from 'lucide-react';
 
 const SAMPLE_RECEIPTS = [
@@ -34,9 +34,6 @@ export default function App() {
   const [imagePreview, setImagePreview] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState('');
-
-  const [customApiKey, setCustomApiKey] = useState(() => localStorage.getItem('user_gemini_api_key') || '');
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
   // Estados para modal de detalle y edición en historial
   const [selectedExpense, setSelectedExpense] = useState(null);
@@ -71,10 +68,6 @@ export default function App() {
     localStorage.setItem('vendedor_codigo', vendedorCodigo);
   }, [sapEmail, vendedorNombre, vendedorCodigo]);
 
-  useEffect(() => {
-    localStorage.setItem('user_gemini_api_key', customApiKey);
-  }, [customApiKey]);
-
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -103,13 +96,6 @@ export default function App() {
   const processReceiptWithAI = async () => {
     if (!imagePreview) return;
 
-    const activeKey = import.meta.env.VITE_GEMINI_API_KEY || customApiKey;
-      
-    if (!activeKey) {
-      setShowApiKeyModal(true);
-      return;
-    }
-
     setIsScanning(true);
     setScanProgress('Analizando ticket con Inteligencia Artificial...');
 
@@ -117,57 +103,24 @@ export default function App() {
       const base64Data = imageFile ? await fileToBase64(imageFile) : imagePreview.split(',')[1];
       const mimeType = imageFile ? imageFile.type : 'image/jpeg';
 
-      const promptText = `Analiza esta imagen de factura o ticket de gasto. Extrae con absoluta precisión los datos y devuélvelos ÚNICAMENTE en formato JSON plano (sin texto adicional, sin bloques markdown de código), con esta estructura exacta:
-{
-  "lugar": "Nombre exacto del establecimiento (ej: Le Pain Quotidien)",
-  "fecha": "Fecha en formato YYYY-MM-DD",
-  "montoTotal": 0.00,
-  "iva": 0.00,
-  "numeroFactura": "Número de factura, check o ticket",
-  "categoria": "Comida",
-  "comentarios": "Descripción del consumo"
-}`;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`, {
+      // Llamada segura a nuestra propia Serverless Function interna de Vercel
+      const response = await fetch('/api/scan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: promptText },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64Data
-                }
-              }
-            ]
-          }]
-        }),
-        signal: controller.signal
+          imageBase64: base64Data,
+          mimeType: mimeType
+        })
       });
 
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
-        const errDetails = await response.text();
-        throw new Error(`Error API (${response.status}): ${errDetails}`);
+        const errData = await response.json();
+        throw new Error(errData.error || 'Error al procesar en el servidor');
       }
 
-      const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (!rawText) {
-        throw new Error("Respuesta vacía de la IA");
-      }
-
-      const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      const parsed = await response.json();
 
       setFormData({
         fecha: parsed.fecha || new Date().toISOString().split('T')[0],
@@ -183,7 +136,7 @@ export default function App() {
       setStep(2);
     } catch (err) {
       console.error("Error al procesar con IA:", err);
-      alert('Error al conectar con Gemini. Verifica que tu API Key sea válida o intenta de nuevo.');
+      alert('Error al escanear la factura: ' + err.message);
     } finally {
       setIsScanning(false);
     }
@@ -320,56 +273,14 @@ Estructura JSON para Carga Automática SAP:
               <p className="text-xs text-slate-400">Portal de Gastos de Vendedores</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setShowApiKeyModal(true)} 
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg text-xs flex items-center gap-1.5"
-              title="Configurar API Key"
-            >
-              <Key className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">API Key</span>
-            </button>
-            <div className="hidden sm:flex items-center space-x-3 text-xs bg-slate-900/60 border border-slate-700/80 rounded-lg px-3 py-1.5">
-              <div><span className="text-slate-400">Vendedor:</span> <strong className="text-slate-200">{vendedorNombre}</strong></div>
-              <div className="h-4 w-[1px] bg-slate-700"></div>
-              <div><span className="text-slate-400">Código SAP:</span> <strong className="text-blue-400 font-mono">{vendedorCodigo}</strong></div>
-            </div>
+          <div className="hidden sm:flex items-center space-x-3 text-xs bg-slate-900/60 border border-slate-700/80 rounded-lg px-3 py-1.5">
+            <div><span className="text-slate-400">Vendedor:</span> <strong className="text-slate-200">{vendedorNombre}</strong></div>
+            <div className="h-4 w-[1px] bg-slate-700"></div>
+            <div><span className="text-slate-400">Código SAP:</span> <strong className="text-blue-400 font-mono">{vendedorCodigo}</strong></div>
           </div>
         </div>
       </header>
 
-      {showApiKeyModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Key className="w-5 h-5 text-amber-400" /> Configurar API Key de Gemini
-              </h3>
-              <button onClick={() => setShowApiKeyModal(false)} className="text-slate-400 hover:text-white">✕</button>
-            </div>
-            <p className="text-xs text-slate-300">
-              Ingresa tu clave de Gemini para habilitar el escaneo inteligente de facturas:
-            </p>
-            <input 
-              type="password" 
-              placeholder="Ej: AQ..." 
-              value={customApiKey} 
-              onChange={(e) => setCustomApiKey(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100 font-mono"
-            />
-            <div className="flex justify-end gap-2 pt-2">
-              <button 
-                onClick={() => setShowApiKeyModal(false)} 
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs"
-              >
-                Guardar y Continuar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Detalle y Edición de Factura en Historial */}
       {selectedExpense && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl my-8">

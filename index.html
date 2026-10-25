@@ -5,13 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Registro Factura - SAP Connect</title>
     
+    <!-- Enlace al manifiesto PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    
     <!-- Carga segura de Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Configuración PWA para iPhone / iOS -->
+    <!-- Configuración PWA para iPhone / iOS y Android -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Facturas SAP" />
+    <meta name="theme-color" content="#0f172a" />
   </head>
   <body class="bg-slate-900 text-slate-100 font-sans antialiased">
     <div id="root"></div>

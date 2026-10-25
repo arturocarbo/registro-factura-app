@@ -35,7 +35,6 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState('');
 
-  // Estados para modal de detalle y edición en historial
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [isEditingExpense, setIsEditingExpense] = useState(false);
   const [editFormData, setEditFormData] = useState({});
@@ -103,7 +102,6 @@ export default function App() {
       const base64Data = imageFile ? await fileToBase64(imageFile) : imagePreview.split(',')[1];
       const mimeType = imageFile ? imageFile.type : 'image/jpeg';
 
-      // Llamada directa al servidor interno de Vercel
       const response = await fetch('/api/scan', {
         method: 'POST',
         headers: {
@@ -450,11 +448,19 @@ Estructura JSON para Carga Automática SAP:
                     <>
                       <Camera className="w-12 h-12 text-blue-400 mb-3" />
                       <h3 className="text-base font-semibold text-slate-200 mb-1">Cargar o Tomar Foto de la Factura</h3>
-                      <p className="text-xs text-slate-400 mb-4">Asegúrese de que el monto, fecha y lugar sean legibles.</p>
-                      <label className="cursor-pointer px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2">
-                        <Upload className="w-4 h-4" /> Seleccionar / Tomar Foto
-                        <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
-                      </label>
+                      <p className="text-xs text-slate-400 mb-4">Elige tomar una foto nueva o selecciona una imagen de tu galería.</p>
+                      
+                      <div className="flex flex-col sm:flex-row gap-2 w-full justify-center">
+                        <label className="cursor-pointer px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+                          <Camera className="w-4 h-4" /> Tomar Foto
+                          <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
+                        </label>
+
+                        <label className="cursor-pointer px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+                          <Upload className="w-4 h-4" /> Elegir de Galería
+                          <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                        </label>
+                      </div>
                     </>
                   )}
                 </div>

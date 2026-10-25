@@ -106,24 +106,25 @@ export default function App() {
     }
 
     setIsScanning(true);
-    setScanProgress('Analizando documento con Inteligencia Artificial...');
+    setScanProgress('Analizando ticket con Inteligencia Artificial...');
 
     try {
       const base64Data = imageFile ? await fileToBase64(imageFile) : imagePreview.split(',')[1];
       const mimeType = imageFile ? imageFile.type : 'image/jpeg';
 
-      const promptText = `Analiza esta factura o comprobante de gasto. Extrae estrictamente la información en formato JSON puro, sin explicaciones adicionales ni bloques markdown que no sean JSON, utilizando exactamente estas llaves:
+      const promptText = `Analiza esta imagen de factura o ticket de gasto. Extrae con absoluta precisión los datos y devuélvelos ÚNICAMENTE en formato JSON plano (sin texto adicional, sin bloques markdown de código), con esta estructura exacta:
 {
-  "lugar": "Nombre del comercio o establecimiento",
-  "fecha": "YYYY-MM-DD",
+  "lugar": "Nombre exacto del establecimiento (ej: Le Pain Quotidien)",
+  "fecha": "Fecha en formato YYYY-MM-DD",
   "montoTotal": 0.00,
   "iva": 0.00,
-  "numeroFactura": "Número de factura o ticket",
+  "numeroFactura": "Número de factura, check o ticket",
   "categoria": "Comida",
-  "comentarios": "Breve descripción"
+  "comentarios": "Descripción del consumo"
 }`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`, {
+      // Usando el modelo estable gemini-1.5-flash para máxima compatibilidad con REST API
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -144,17 +145,18 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
+        const errDetails = await response.text();
+        throw new Error(`Error API (${response.status}): ${errDetails}`);
       }
 
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (!rawText) {
-        throw new Error("No se recibió respuesta de Gemini");
+        throw new Error("Respuesta vacía de la IA");
       }
 
-      // Limpieza robusta de marcadores Markdown por si la IA responde con ```json ... ```
+      // Limpieza profunda de formato markdown
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJson);
 
@@ -171,18 +173,8 @@ export default function App() {
       });
       setStep(2);
     } catch (err) {
-      console.error("Error al procesar la factura:", err);
-      // Fallback de emergencia para que la app nunca se quede bloqueada y te permita avanzar
-      setFormData({
-        fecha: new Date().toISOString().split('T')[0],
-        lugar: 'Establecimiento Escaneado (Verificar)',
-        montoTotal: '25.00',
-        iva: '2.50',
-        numeroFactura: 'TICKET-001',
-        categoria: 'Comida',
-        comentarios: 'Extracción manual requerida por formato'
-      });
-      setStep(2);
+      console.error("Error detallado al procesar con IA:", err);
+      alert('Error al procesar con IA: ' + err.message);
     } finally {
       setIsScanning(false);
     }

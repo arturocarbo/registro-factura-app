@@ -1,0 +1,15 @@
+{
+  "short_name": "Facturas SAP",
+  "name": "Registro de Facturas para Vendedores",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2921/2921222.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#1d4ed8",
+  "theme_color": "#1d4ed8",
+  "display": "standalone"
+}

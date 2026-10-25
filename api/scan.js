@@ -1,3 +1,11 @@
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -39,7 +47,6 @@ export default async function handler(req, res) {
   "comentarios": "Descripción del consumo"
 }`;
 
-    // Actualizado al modelo oficial exacto que solicita Google
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -60,16 +67,23 @@ export default async function handler(req, res) {
       })
     });
 
+    const responseText = await response.text();
+
     if (!response.ok) {
-      const errText = await response.text();
-      return res.status(response.status).json({ error: `Error de Google AI: ${errText}` });
+      return res.status(response.status).json({ error: `Error de Google AI: ${responseText}` });
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      return res.status(500).json({ error: 'La respuesta de Google no tiene formato válido.' });
+    }
+
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!rawText) {
-      return res.status(500).json({ error: 'La IA no devolvió contenido.' });
+      return res.status(500).json({ error: 'La IA no devolvió contenido analizable.' });
     }
 
     const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();

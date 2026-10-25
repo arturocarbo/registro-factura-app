@@ -114,7 +114,6 @@ export default function App() {
 
       const promptText = "Analiza esta factura o comprobante de gasto. Extrae con precisión rigurosa en formato JSON puro (sin bloques de código markdown extra): {\"lugar\": \"nombre del establecimiento\", \"fecha\": \"YYYY-MM-DD\", \"montoTotal\": 0.00, \"iva\": 0.00, \"numeroFactura\": \"número\", \"categoria\": \"Comida o Hospedaje o Transporte o Combustible u Otros\", \"comentarios\": \"breve descripción\"}";
 
-      // Llamada directa por API REST universal (compatible con llaves AQ... y AIzaSy...)
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`, {
         method: 'POST',
         headers: {
@@ -145,7 +144,6 @@ export default function App() {
       const data = await response.json();
       const rawText = data.candidates[0].content.parts[0].text;
       
-      // Limpieza por si la respuesta trae marcadores de código
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJson);
 
@@ -305,7 +303,7 @@ Estructura JSON para Carga Automática SAP:
               <button onClick={() => setShowApiKeyModal(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
             <p className="text-xs text-slate-300">
-              Ingresa tu clave de Gemini (por ejemplo, la que empieza por <code className="text-blue-400 font-mono">AQ...</code>) para habilitar el escaneo inteligente de facturas:
+              Ingresa tu clave de Gemini para habilitar el escaneo inteligente de facturas:
             </p>
             <input 
               type="password" 

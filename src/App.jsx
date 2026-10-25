@@ -36,7 +36,6 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState('');
 
-  // Gestión de API Key con respaldo en localStorage para máxima robustez
   const [customApiKey, setCustomApiKey] = useState(() => localStorage.getItem('user_gemini_api_key') || '');
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
@@ -100,7 +99,6 @@ export default function App() {
   const processReceiptWithAI = async () => {
     if (!imagePreview) return;
 
-    // Prioriza la clave de Vercel, luego la respaldada localmente
     const activeKey = import.meta.env.VITE_GEMINI_API_KEY || customApiKey;
       
     if (!activeKey) {
@@ -112,7 +110,15 @@ export default function App() {
     setScanProgress('Analizando documento con Inteligencia Artificial...');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: activeKey });
+      // Inicialización compatible con el nuevo formato de llaves de Google (AQ...)
+      const ai = new GoogleGenAI({ 
+        apiKey: activeKey,
+        httpOptions: {
+          headers: {
+            'Authorization': `Bearer ${activeKey}`
+          }
+        }
+      });
       
       const base64Data = imageFile ? await fileToBase64(imageFile) : imagePreview.split(',')[1];
       const mimeType = imageFile ? imageFile.type : 'image/jpeg';
@@ -290,7 +296,6 @@ Estructura JSON para Carga Automática SAP:
         </div>
       </header>
 
-      {/* Modal para configurar API Key si llegara a faltar */}
       {showApiKeyModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
@@ -301,11 +306,11 @@ Estructura JSON para Carga Automática SAP:
               <button onClick={() => setShowApiKeyModal(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
             <p className="text-xs text-slate-300">
-              Ingresa tu clave de Gemini (la que empieza por <code className="text-blue-400 font-mono">AIzaSy...</code>) para habilitar el escaneo inteligente de facturas:
+              Ingresa tu clave de Gemini (la que empieza por <code className="text-blue-400 font-mono">AQ...</code>) para habilitar el escaneo inteligente de facturas:
             </p>
             <input 
               type="password" 
-              placeholder="Ej: AIzaSy..." 
+              placeholder="Ej: AQ..." 
               value={customApiKey} 
               onChange={(e) => setCustomApiKey(e.target.value)}
               className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100 font-mono"

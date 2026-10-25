@@ -103,7 +103,7 @@ export default function App() {
       const base64Data = imageFile ? await fileToBase64(imageFile) : imagePreview.split(',')[1];
       const mimeType = imageFile ? imageFile.type : 'image/jpeg';
 
-      // Llamada segura a nuestra propia Serverless Function interna de Vercel
+      // Llamada directa al servidor interno de Vercel
       const response = await fetch('/api/scan', {
         method: 'POST',
         headers: {

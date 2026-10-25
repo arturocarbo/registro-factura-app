@@ -123,8 +123,8 @@ export default function App() {
   "comentarios": "Descripción del consumo"
 }`;
 
-      // Usando el modelo actualizado gemini-2.5-flash
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`, {
+      // Actualizado al modelo oficial requerido: gemini-3.8-flash
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${activeKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

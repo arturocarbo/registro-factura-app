@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Camera, Upload, CheckCircle2, AlertCircle, FileText, Send, 
   Trash2, Download, Filter, DollarSign, Calendar, Building2, 
-  RefreshCw, Eye, Mail, Tag, Sparkles, Layers, PieChart, ArrowUpRight, Clock, Plus, Edit2
+  RefreshCw, Eye, Mail, Tag, Sparkles, Layers, PieChart, ArrowUpRight, Clock, Plus, Edit2, Key
 } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
 
@@ -36,6 +36,10 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState('');
 
+  // Gestión de API Key con respaldo en localStorage para máxima robustez
+  const [customApiKey, setCustomApiKey] = useState(() => localStorage.getItem('user_gemini_api_key') || '');
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
   const [formData, setFormData] = useState({
     fecha: new Date().toISOString().split('T')[0],
     lugar: '',
@@ -63,6 +67,10 @@ export default function App() {
     localStorage.setItem('vendedor_nombre', vendedorNombre);
     localStorage.setItem('vendedor_codigo', vendedorCodigo);
   }, [sapEmail, vendedorNombre, vendedorCodigo]);
+
+  useEffect(() => {
+    localStorage.setItem('user_gemini_api_key', customApiKey);
+  }, [customApiKey]);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -92,17 +100,19 @@ export default function App() {
   const processReceiptWithAI = async () => {
     if (!imagePreview) return;
 
+    // Prioriza la clave de Vercel, luego la respaldada localmente
+    const activeKey = import.meta.env.VITE_GEMINI_API_KEY || customApiKey;
+      
+    if (!activeKey) {
+      setShowApiKeyModal(true);
+      return;
+    }
+
     setIsScanning(true);
     setScanProgress('Analizando documento con Inteligencia Artificial...');
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      
-      if (!apiKey) {
-        throw new Error("No se configuró VITE_GEMINI_API_KEY en las variables de entorno de Vercel.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: activeKey });
       
       const base64Data = imageFile ? await fileToBase64(imageFile) : imagePreview.split(',')[1];
       const mimeType = imageFile ? imageFile.type : 'image/jpeg';
@@ -148,8 +158,8 @@ export default function App() {
       setStep(2);
     } catch (err) {
       console.error("Error al procesar la factura:", err);
-      alert('Error de API Key: Asegúrate de configurar la variable VITE_GEMINI_API_KEY en Vercel.');
-      setStep(2);
+      alert('Error al conectar con Gemini. Verifica que tu API Key sea válida.');
+      setShowApiKeyModal(true);
     } finally {
       setIsScanning(false);
     }
@@ -193,19 +203,19 @@ export default function App() {
 `SOLICITUD DE REGISTRO DE FACTURA DE GASTOS - SAP
 
 Dato del Vendedor:
-• Vendedor: ${vendedorNombre}
-• Código SAP Vendedor: ${vendedorCodigo}
+- Vendedor: ${vendedorNombre}
+- Código SAP Vendedor: ${vendedorCodigo}
 
 Detalles de la Factura:
 ------------------------------------------
-• ID Registro: ${expenseItem.id}
-• Fecha Factura: ${expenseItem.fecha}
-• Establecimiento / Lugar: ${expenseItem.lugar}
-• N° Factura / Correlativo: ${expenseItem.numeroFactura}
-• Categoría de Gasto: ${expenseItem.categoria}
-• Monto Total: $${expenseItem.montoTotal.toFixed(2)}
-• IVA Aplicable: $${expenseItem.iva ? expenseItem.iva.toFixed(2) : '0.00'}
-• Comentarios: ${expenseItem.comentarios || 'N/A'}
+- ID Registro: ${expenseItem.id}
+- Fecha Factura: ${expenseItem.fecha}
+- Establecimiento / Lugar: ${expenseItem.lugar}
+- N° Factura / Correlativo: ${expenseItem.numeroFactura}
+- Categoría de Gasto: ${expenseItem.categoria}
+- Monto Total: $${expenseItem.montoTotal.toFixed(2)}
+- IVA Aplicable: $${expenseItem.iva ? expenseItem.iva.toFixed(2) : '0.00'}
+- Comentarios: ${expenseItem.comentarios || 'N/A'}
 
 ---
 Estructura JSON para Carga Automática SAP:
@@ -262,13 +272,55 @@ Estructura JSON para Carga Automática SAP:
               <p className="text-xs text-slate-400">Portal de Gastos de Vendedores</p>
             </div>
           </div>
-          <div className="hidden sm:flex items-center space-x-4 text-xs bg-slate-900/60 border border-slate-700/80 rounded-lg px-3 py-1.5">
-            <div><span className="text-slate-400">Vendedor:</span> <strong className="text-slate-200">{vendedorNombre}</strong></div>
-            <div className="h-4 w-[1px] bg-slate-700"></div>
-            <div><span className="text-slate-400">Código SAP:</span> <strong className="text-blue-400 font-mono">{vendedorCodigo}</strong></div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setShowApiKeyModal(true)} 
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg text-xs flex items-center gap-1.5"
+              title="Configurar API Key"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">API Key</span>
+            </button>
+            <div className="hidden sm:flex items-center space-x-3 text-xs bg-slate-900/60 border border-slate-700/80 rounded-lg px-3 py-1.5">
+              <div><span className="text-slate-400">Vendedor:</span> <strong className="text-slate-200">{vendedorNombre}</strong></div>
+              <div className="h-4 w-[1px] bg-slate-700"></div>
+              <div><span className="text-slate-400">Código SAP:</span> <strong className="text-blue-400 font-mono">{vendedorCodigo}</strong></div>
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Modal para configurar API Key si llegara a faltar */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Key className="w-5 h-5 text-amber-400" /> Configurar API Key de Gemini
+              </h3>
+              <button onClick={() => setShowApiKeyModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <p className="text-xs text-slate-300">
+              Ingresa tu clave de Gemini (la que empieza por <code className="text-blue-400 font-mono">AIzaSy...</code>) para habilitar el escaneo inteligente de facturas:
+            </p>
+            <input 
+              type="password" 
+              placeholder="Ej: AIzaSy..." 
+              value={customApiKey} 
+              onChange={(e) => setCustomApiKey(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100 font-mono"
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button 
+                onClick={() => setShowApiKeyModal(false)} 
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs"
+              >
+                Guardar y Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <nav className="bg-slate-800/40 border-b border-slate-800 px-4 py-2">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -320,7 +372,7 @@ Estructura JSON para Carga Automática SAP:
                   <h3 className="text-base font-semibold text-slate-200 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-blue-400" /> Extracción Inteligente con IA
                   </h3>
-                  <p className="text-xs text-slate-400">El modelo Gemini 2.5 Flash identificará automáticamente los montos, fecha, comercio e IVA para acelerar tu reporte.</p>
+                  <p className="text-xs text-slate-400">El modelo Gemini identificará automáticamente los montos, fecha, comercio e IVA para acelerar tu reporte.</p>
                   <button
                     onClick={processReceiptWithAI}
                     disabled={!imagePreview || isScanning}

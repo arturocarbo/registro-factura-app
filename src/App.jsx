@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Camera, Upload, CheckCircle2, AlertCircle, FileText, Send, 
   Trash2, Download, Filter, DollarSign, Calendar, Building2, 
-  RefreshCw, Eye, Mail, Tag, Sparkles, Layers, PieChart, ArrowUpRight, Clock, Plus, Edit2, Key
+  RefreshCw, Eye, Mail, Tag, Sparkles, Layers, PieChart, ArrowUpRight, Clock, Plus, Edit2, Key, X
 } from 'lucide-react';
 
 const SAMPLE_RECEIPTS = [
@@ -37,6 +37,11 @@ export default function App() {
 
   const [customApiKey, setCustomApiKey] = useState(() => localStorage.getItem('user_gemini_api_key') || '');
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
+  // Estados para modal de detalle y edición en historial
+  const [selectedExpense, setSelectedExpense] = useState(null);
+  const [isEditingExpense, setIsEditingExpense] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
 
   const [formData, setFormData] = useState({
     fecha: new Date().toISOString().split('T')[0],
@@ -123,8 +128,10 @@ export default function App() {
   "comentarios": "Descripción del consumo"
 }`;
 
-      // Actualizado al modelo oficial requerido: gemini-3.8-flash
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${activeKey}`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,8 +148,11 @@ export default function App() {
               }
             ]
           }]
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errDetails = await response.text();
@@ -156,7 +166,6 @@ export default function App() {
         throw new Error("Respuesta vacía de la IA");
       }
 
-      // Limpieza profunda de formato markdown
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJson);
 
@@ -173,8 +182,8 @@ export default function App() {
       });
       setStep(2);
     } catch (err) {
-      console.error("Error detallado al procesar con IA:", err);
-      alert('Error al procesar con IA: ' + err.message);
+      console.error("Error al procesar con IA:", err);
+      alert('Error al conectar con Gemini. Verifica que tu API Key sea válida o intenta de nuevo.');
     } finally {
       setIsScanning(false);
     }
@@ -198,6 +207,29 @@ export default function App() {
 
     setExpenses([newExpense, ...expenses]);
     setStep(3);
+  };
+
+  const handleUpdateEditedExpense = (e) => {
+    e.preventDefault();
+    const updatedExpenses = expenses.map(item => {
+      if (item.id === editFormData.id) {
+        return {
+          ...item,
+          lugar: editFormData.lugar,
+          fecha: editFormData.fecha,
+          montoTotal: parseFloat(editFormData.montoTotal) || 0,
+          iva: parseFloat(editFormData.iva) || 0,
+          numeroFactura: editFormData.numeroFactura,
+          categoria: editFormData.categoria,
+          comentarios: editFormData.comentarios
+        };
+      }
+      return item;
+    });
+
+    setExpenses(updatedExpenses);
+    setIsEditingExpense(false);
+    setSelectedExpense(null);
   };
 
   const markAsSentAndEmail = (expenseItem) => {
@@ -258,6 +290,7 @@ Estructura JSON para Carga Automática SAP:
   const handleDeleteExpense = (id) => {
     if (confirm('¿Desea eliminar esta factura registrada?')) {
       setExpenses(expenses.filter(item => item.id !== id));
+      setSelectedExpense(null);
     }
   };
 
@@ -332,6 +365,139 @@ Estructura JSON para Carga Automática SAP:
                 Guardar y Continuar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalle y Edición de Factura en Historial */}
+      {selectedExpense && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl my-8">
+            <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-400" /> 
+                {isEditingExpense ? 'Editar Registro de Factura' : `Detalle de Factura: ${selectedExpense.id}`}
+              </h3>
+              <button onClick={() => { setSelectedExpense(null); setIsEditingExpense(false); }} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {!isEditingExpense ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start text-xs">
+                <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-700/80 flex flex-col items-center">
+                  <img src={selectedExpense.imagenUrl} alt="Comprobante" className="max-h-[300px] w-auto object-contain rounded-lg" />
+                  <span className="mt-2 text-[10px] text-slate-400">Comprobante guardado</span>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-slate-400 block">Establecimiento / Lugar</span>
+                    <strong className="text-sm text-white">{selectedExpense.lugar}</strong>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-400 block">Monto Total</span>
+                      <strong className="text-emerald-400 font-mono text-sm">${selectedExpense.montoTotal.toFixed(2)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">IVA / Impuesto</span>
+                      <strong className="text-slate-200 font-mono">${selectedExpense.iva ? selectedExpense.iva.toFixed(2) : '0.00'}</strong>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-400 block">Fecha</span>
+                      <span className="text-slate-200">{selectedExpense.fecha}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">N° Factura / Check</span>
+                      <span className="text-slate-200 font-mono">{selectedExpense.numeroFactura}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Categoría</span>
+                    <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full">{selectedExpense.categoria}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Estado SAP</span>
+                    <span className={`px-2 py-0.5 rounded-full ${selectedExpense.estado === 'Enviado a SAP' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                      {selectedExpense.estado} {selectedExpense.fechaEnvio ? `(${selectedExpense.fechaEnvio})` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Comentarios</span>
+                    <p className="text-slate-300 italic">{selectedExpense.comentarios || 'Sin comentarios'}</p>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 flex flex-wrap gap-2 pt-2 border-t border-slate-700">
+                  <button 
+                    onClick={() => { setEditFormData(selectedExpense); setIsEditingExpense(true); }}
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl flex items-center justify-center gap-1.5"
+                  >
+                    <Edit2 className="w-4 h-4" /> Editar Datos
+                  </button>
+                  <button 
+                    onClick={() => markAsSentAndEmail(selectedExpense)}
+                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl flex items-center justify-center gap-1.5"
+                  >
+                    <Mail className="w-4 h-4" /> Enviar Correo SAP
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteExpense(selectedExpense.id)}
+                    className="py-2.5 px-4 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold rounded-xl flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" /> Eliminar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleUpdateEditedExpense} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 mb-1">Comercio / Establecimiento *</label>
+                  <input type="text" required value={editFormData.lugar} onChange={(e) => setEditFormData({ ...editFormData, lugar: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 mb-1">Monto Total ($) *</label>
+                    <input type="number" step="0.01" required value={editFormData.montoTotal} onChange={(e) => setEditFormData({ ...editFormData, montoTotal: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-emerald-400 font-bold" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">IVA / Impuesto ($)</label>
+                    <input type="number" step="0.01" value={editFormData.iva} onChange={(e) => setEditFormData({ ...editFormData, iva: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 mb-1">Fecha *</label>
+                    <input type="date" required value={editFormData.fecha} onChange={(e) => setEditFormData({ ...editFormData, fecha: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">N° Factura / Check *</label>
+                    <input type="text" required value={editFormData.numeroFactura} onChange={(e) => setEditFormData({ ...editFormData, numeroFactura: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200 font-mono" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Categoría</label>
+                  <select value={editFormData.categoria} onChange={(e) => setEditFormData({ ...editFormData, categoria: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200">
+                    <option value="Comida">Comida / Representación</option>
+                    <option value="Hospedaje">Hospedaje</option>
+                    <option value="Transporte">Transporte / Peaje</option>
+                    <option value="Combustible">Combustible</option>
+                    <option value="Otros">Otros Gastos</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Comentarios</label>
+                  <input type="text" value={editFormData.comentarios} onChange={(e) => setEditFormData({ ...editFormData, comentarios: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setIsEditingExpense(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl">Cancelar</button>
+                  <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl">Guardar Cambios</button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -469,22 +635,33 @@ Estructura JSON para Carga Automática SAP:
 
         {activeTab === 'history' && (
           <div className="space-y-4">
-            <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 flex flex-col md:flex-row gap-3 justify-between">
-              <input type="text" placeholder="Buscar comercio..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200" />
-              <button onClick={exportToSAPCSV} className="px-3 py-2 bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1">
+            <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 flex flex-col md:flex-row gap-3 justify-between items-center">
+              <input type="text" placeholder="Buscar comercio..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 w-full md:w-64" />
+              <button onClick={exportToSAPCSV} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1 w-full md:w-auto justify-center">
                 <Download className="w-3.5 h-3.5" /> Exportar CSV SAP
               </button>
             </div>
             <div className="space-y-3">
               {filteredExpenses.map(exp => (
-                <div key={exp.id} className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center text-xs">
-                  <div>
-                    <h4 className="font-bold text-white text-sm">{exp.lugar}</h4>
-                    <p className="text-slate-400">{exp.fecha} • {exp.numeroFactura} • {exp.categoria}</p>
+                <div 
+                  key={exp.id} 
+                  onClick={() => setSelectedExpense(exp)}
+                  className="bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-blue-500/50 p-4 rounded-2xl flex justify-between items-center text-xs cursor-pointer transition-all shadow-md"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-white text-sm">{exp.lugar}</h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] ${exp.estado === 'Enviado a SAP' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                        {exp.estado}
+                      </span>
+                    </div>
+                    <p className="text-slate-400">{exp.fecha} • Factura: <strong className="text-slate-300 font-mono">{exp.numeroFactura}</strong> • <span className="text-blue-400">{exp.categoria}</span></p>
                   </div>
-                  <div className="text-right">
-                    <span className="font-bold text-emerald-400 text-sm font-mono">${exp.montoTotal.toFixed(2)}</span>
-                    <button onClick={() => handleDeleteExpense(exp.id)} className="block text-rose-400 ml-auto mt-1"><Trash2 className="w-4 h-4" /></button>
+                  <div className="text-right flex items-center gap-3">
+                    <div>
+                      <span className="font-bold text-emerald-400 text-sm font-mono block">${exp.montoTotal.toFixed(2)}</span>
+                      <span className="text-[10px] text-slate-400">Ver detalle →</span>
+                    </div>
                   </div>
                 </div>
               ))}
